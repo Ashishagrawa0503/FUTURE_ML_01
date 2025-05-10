@@ -1,0 +1,95 @@
+import pandas as pd
+import numpy as np
+
+df= pd.read_csv('/content/sales_data_sample.csv',encoding='latin-1')
+df.head()
+
+df.columns
+
+df= df[['ORDERDATE','SALES']]
+
+df= df.dropna()
+
+
+df=df[df['SALES']>0]
+
+df['ORDERDATE']=pd.to_datetime(df['ORDERDATE'])
+
+df['ORDERDATE'].dtype
+
+df=df.sort_values('ORDERDATE')
+df
+
+df=df.reset_index(drop=True)
+
+df['SALES'].dtype
+
+sales=df.groupby('ORDERDATE')['SALES'].sum().reset_index()
+
+sales
+
+sales['ORERDATE']=pd.to_datetime(sales['ORDERDATE'])
+
+sales['SALES']=sales['SALES'].astype(float)
+sales= sales.rename(columns={'ORDERDATE':'ds','SALES':'y'})
+sales
+
+try:
+  train=sales[:-20]
+  test=sales[-20:]
+  if train.empty or test.empty:
+    raise ValueError('TRAINING AND TESTING DATA IS EMPTY')
+  if len(train)<20 or len(test)<20:
+    raise ValueError('DATA NOT ENOUGH')
+except ValueError as ve:
+  print(f"ValueError:{ve}")
+  exit()
+        
+
+from prophet import Prophet
+try:
+  model=Prophet()
+  model.add_country_holidays(country_name='US')
+  model.add_seasonality(name='monthly',period=30.5,fourier_order=5)
+  model.add_seasonality(name='weekly',period=7,fourier_order=3)
+  model.fit(train)
+except ValueError as ve:
+  print(f"ValueError:{ve}")
+  exit()  
+
+try:
+  future=model.make_future_dataframe(periods=20,freq='D')
+  forecast=model.predict(future)
+except ValueError as ve:
+  print(f"ValueError:{ve}")
+  exit()
+
+
+try:
+  prediction=forecast[['ds','yhat']]
+  prediction
+except ValueError as ve:
+  print(f"ValueError:{ve}")
+  exit()
+    
+
+import matplotlib.pyplot as plt
+actual = test.copy()
+try:
+  model.plot(forecast)
+  plt.axvline(x=actual['ds'].iloc[0],color='r',linestyle='--')
+  plt.title('Forecasted vs Actual Sales')
+  plt.xlabel('Date')
+  plt.ylabel('Sales')
+  plt.show()
+except ValueError as ve:
+  print(f"ValueError:{ve}")
+  exit()
+
+ 
+
+import pickle
+
+# Save the model
+with open('prophet_model.pkl', 'wb') as f:
+    pickle.dump(model, f)
